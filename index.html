@@ -169,6 +169,7 @@
 </div>
 
 <script>
+const BUILD = '2026-11-09.3';
 const API_URL = 'https://script.google.com/macros/s/AKfycbzcA_B-loUQQTfAOSpeczHp3x4Agp6AhG4PlUX_Od5Ri1cFpseCfpHQn_Kttlu0Zdt-vA/exec';
 const HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
 const MAPS_URL = 'https://www.google.com/maps?q=';
@@ -207,6 +208,17 @@ if (IN_APP && !IS_POPUP) {
   } else if (isLine) google.script.run.withSuccessHandler(url => {
     if (url) box.insertAdjacentHTML('beforeend', `<a class="btn" href="${url}?openExternalBrowser=1" target="_top">เปิดในเบราว์เซอร์</a>`);
   }).getExecUrl();
+}
+
+/* ---------- เปิดจาก GitHub Pages: ถ้ามีเวอร์ชันใหม่ให้โหลดใหม่ทันที (กันมือถือจำหน้าเก่า) ---------- */
+if (!HAS_GAS && !IS_POPUP && location.protocol === 'https:') {
+  fetch(location.pathname + '?nocache=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.text())
+    .then(t => {
+      const m = t.match(/const BUILD = '([^']+)'/);
+      if (m && m[1] !== BUILD) location.replace(location.pathname + '?v=' + m[1]);
+    })
+    .catch(() => {});
 }
 
 /* ---------- นาฬิกา (ซิงก์กับเวลาเซิร์ฟเวอร์) ---------- */
