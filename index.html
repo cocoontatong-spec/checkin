@@ -47,6 +47,11 @@
   .mode:active{background:#e1e6f0}
   .mode.on{background:#e7f0ff;border-color:var(--brand);color:var(--brand)}
   .mode.out.on{background:#fff1e6;border-color:#e06c00;color:#c25d00}
+  .choiceTitle{font-weight:700;color:var(--ok);text-align:center;margin:14px 0 10px;font-size:17px}
+  .grid4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .opt{background:#eef1f7;color:var(--ink);border:2px solid transparent;padding:18px 8px;font-size:18px}
+  .opt:active{background:#e1e6f0}
+  .opt.sug{border-color:var(--brand);background:#e7f0ff;color:var(--brand)}
   .today{margin-top:12px;font-size:14px;color:var(--muted)}
   .today div{display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--line);color:var(--ink)}
   .cam{position:relative;border-radius:14px;overflow:hidden;background:#0d1220;aspect-ratio:3/4}
@@ -137,6 +142,16 @@
     <button id="btnShot" disabled>สแกนหน้า</button>
     <div class="hint" id="shotHint"></div>
     <button class="ghost mt" id="btnAlt" hidden></button>
+    <div id="choice" hidden>
+      <div class="choiceTitle">✓ สแกนหน้าแล้ว เลือกรายการที่ต้องการบันทึก</div>
+      <div class="grid4">
+        <button class="opt" data-type="IN">🟢 เข้างาน</button>
+        <button class="opt" data-type="OUT">🔴 ออกงาน</button>
+        <button class="opt" data-type="SICK">🤒 ลาป่วย</button>
+        <button class="opt" data-type="OT">⏱️ ทำโอที</button>
+      </div>
+      <button class="ghost mt" id="btnRescan">สแกนหน้าใหม่</button>
+    </div>
     <input type="file" id="fbFile" class="filein" accept="image/*" capture="user" tabindex="-1">
   </section>
 
@@ -264,17 +279,15 @@ function renderEmp(){
   $('av').textContent = (e.name || '?').trim().charAt(0);
   $('empName').textContent = e.name;
   $('empDept').textContent = [e.id, e.dept].filter(Boolean).join(' · ');
-  $('modes').hidden = !e.registered;
+  $('modes').hidden = true;
   $('regNote').hidden = e.registered;
   $('today').innerHTML = e.today && e.today.length
     ? '<b>วันนี้</b>' + e.today.map(t => `<div><span>${esc(t.type)} · ${esc(t.status)}</span><span>${t.time} น.</span></div>`).join('')
     : (e.registered ? 'วันนี้ยังไม่มีการลงเวลา' : '');
   show(['stepEmp','stepCam']);
-  if (e.registered) {
-    const hasIn = (e.today||[]).some(t => t.type === 'เข้างาน');
-    setMode(S.prefMode || (hasIn ? 'OUT' : 'IN'));
-    S.prefMode = null;
-  } else setMode('REG');
+  S.suggest = (e.today||[]).some(t => t.type === 'เข้างาน') ? 'OUT' : 'IN';
+  hideChoice();
+  setMode(e.registered ? 'SCAN' : 'REG');
   $('snap').hidden = true;
   renderCam();
   if (CAM_MODE !== 'popup') startGps();
@@ -283,12 +296,10 @@ function renderEmp(){
 document.querySelectorAll('.mode').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 function setMode(m){
   S.mode = m;
-  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
-  const what = m === 'REG' ? 'ลงทะเบียนใบหน้า' : m === 'IN' ? 'เข้างาน' : 'ออกงาน';
+  const what = m === 'REG' ? 'ลงทะเบียนใบหน้า' : 'สแกนหน้า';
   $('btnShot').textContent =
-    CAM_MODE === 'photo' ? '📷 ถ่ายรูปสแกนหน้า · ' + what :
-    CAM_MODE === 'popup' ? '📷 เปิดกล้อง · ' + what :
-    (m === 'REG' ? 'ลงทะเบียนใบหน้า' : 'สแกนหน้า · ' + what);
+    CAM_MODE === 'photo' ? '📷 ถ่ายรูป · ' + what :
+    CAM_MODE === 'popup' ? '📷 เปิดกล้อง · ' + what : what;
   updateBtn();
 }
 
@@ -351,6 +362,7 @@ async function startCamera(){
 function startLoop(){ if (!S.loop) { S.loop = true; detectLoop(); } }
 async function detectLoop(){
   if (!S.loop) return;
+  if (S.choosing) { setTimeout(detectLoop, 300); return; }
   const v = $('video');
   if (S.models && v.readyState >= 2 && !S.busy) {
     try {
@@ -365,7 +377,7 @@ async function detectLoop(){
         S.face = near;
         setChip('chipFace', near ? 'ok' : 'warn', near ? 'ใบหน้า: พร้อม' : 'ใบหน้า: ขยับเข้าใกล้');
         /* สแกนอัตโนมัติ: เห็นหน้านิ่งต่อเนื่อง ~1 วินาที และมี GPS แล้ว */
-        const ready = near && (S.mode === 'REG' || S.pos) && Date.now() > (S.cooldown || 0);
+        const ready = near && !S.choosing && (S.mode === 'REG' || S.pos) && Date.now() > (S.cooldown || 0);
         S.stable = ready ? (S.stable || 0) + 1 : 0;
         if (S.stable >= 6) {
           S.stable = 0;
@@ -490,7 +502,7 @@ function frameOf(src){
   return c;
 }
 
-function makePhoto(frame, box){
+function makePhoto(frame, box, label){
  /* ครอปรอบใบหน้า แล้วประทับเวลา/ชื่อ/พิกัดลงบนรูป */
   const W = 360, H = 480;
   const cx = box.x + box.width/2, cy = box.y + box.height/2;
@@ -503,55 +515,99 @@ function makePhoto(frame, box){
   x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, H - 62, W, 62);
   x.fillStyle = '#fff'; x.font = '600 15px Sarabun, sans-serif';
   const d = new Date(Date.now() + S.offset);
-  x.fillText(d.toLocaleString('th-TH', {hour12:false, timeZone:'Asia/Bangkok'}) + '  ' + (S.mode==='IN'?'เข้างาน':S.mode==='OUT'?'ออกงาน':'ลงทะเบียน'), 10, H - 40);
+  x.fillText(d.toLocaleString('th-TH', {hour12:false, timeZone:'Asia/Bangkok'}) + '  ' + label, 10, H - 40);
   x.font = '13px Sarabun, sans-serif';
   x.fillText(S.emp.id + ' ' + S.emp.name + (S.pos ? `  ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)}` : ''), 10, H - 16);
   return c.toDataURL('image/jpeg', 0.78);
 }
 
 async function capture(src, samples){
-  if (S.busy) return;
+  if (S.busy || S.choosing) return;
   hideErr(); S.busy = true; updateBtn();
   const b = $('btnShot');
   b.innerHTML = '<span class="spin"></span>กำลังวิเคราะห์ใบหน้า...';
   try {
     if (!S.models) { await modelsReady; if (S.modelErr) throw new Error('โหลดระบบจดจำใบหน้าไม่สำเร็จ กรุณารีเฟรช'); }
     const opts = new faceapi.TinyFaceDetectorOptions({inputSize:416, scoreThreshold:0.45});
-    const descs = []; let photo = null;
+    const descs = []; let first = null;
     for (let i = 0; i < samples; i++) {
       const frame = frameOf(src);
       const r = await faceapi.detectSingleFace(frame, opts).withFaceLandmarks().withFaceDescriptor();
       if (!r) throw new Error('ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ ให้เห็นใบหน้าเต็ม ๆ ในที่แสงสว่าง');
       descs.push(r.descriptor);
-      if (!photo) photo = makePhoto(frame, r.detection.box);
+      if (!first) first = { frame: frame, box: r.detection.box };
       if (i < samples - 1) await sleep(300);
     }
     setChip('chipFace', 'ok', 'ใบหน้า: พบแล้ว');
     const desc = Array.from({length:128}, (_, k) => +(descs.reduce((s, d) => s + d[k], 0) / descs.length).toFixed(5));
 
-    b.innerHTML = '<span class="spin"></span>กำลังบันทึก...';
-    const payload = { empId:S.emp.id, type:S.mode, descriptor:desc, photo, ua:navigator.userAgent,
-                      lat:S.pos && S.pos.lat, lng:S.pos && S.pos.lng, accuracy:S.pos && S.pos.accuracy };
-
     if (S.mode === 'REG') {
-      await api('registerFace', payload);
+      b.innerHTML = '<span class="spin"></span>กำลังบันทึก...';
+      await api('registerFace', { empId:S.emp.id, descriptor:desc, ua:navigator.userAgent,
+                                  photo: makePhoto(first.frame, first.box, 'ลงทะเบียน') });
       S.emp.registered = true;
       S.busy = false;
       if (IS_POPUP) try { window.opener.onPopupResult('REG'); } catch(e){}
       renderEmp();
-      showInfo('ลงทะเบียนใบหน้าเรียบร้อย ✓ เลือก เข้างาน/ออกงาน แล้วสแกนอีกครั้งเพื่อลงเวลา');
+      S.cooldown = Date.now() + 2500;
+      showInfo('ลงทะเบียนใบหน้าเรียบร้อย ✓ สแกนหน้าอีกครั้งเพื่อลงเวลา');
       return;
     }
-    const r = await api('checkIn', payload);
-    S.emp.today = r.today;
-    if (IS_POPUP) try { window.opener.onPopupResult('CHECK', r, photo); } catch(e){}
-    showResult(r, photo);
+    S.scan = { desc: desc, frame: first.frame, box: first.box, at: Date.now() };
+    showChoice();
   } catch(e) {
     S.cooldown = Date.now() + 4000;
     setChip('chipFace', 'bad', 'ใบหน้า: ไม่ผ่าน');
     showErr(e);
   }
   finally { S.busy = false; setMode(S.mode); }
+}
+
+/* ---------- หลังสแกนหน้า: เลือก เข้างาน / ออกงาน / ลาป่วย / ทำโอที ---------- */
+const TYPE_TH = { IN:'เข้างาน', OUT:'ออกงาน', SICK:'ลาป่วย', OT:'ทำโอที' };
+function showChoice(){
+  S.choosing = true;
+  $('snap').src = S.scan.frame.toDataURL('image/jpeg', 0.8);
+  $('snap').hidden = false; $('idle').hidden = true;
+  $('camMsg').textContent = '';
+  $('btnShot').hidden = $('btnAlt').hidden = $('shotHint').hidden = true;
+  document.querySelectorAll('.opt').forEach(o => o.classList.toggle('sug', o.dataset.type === S.suggest));
+  $('choice').hidden = false;
+  $('choice').scrollIntoView({behavior:'smooth', block:'center'});
+}
+function hideChoice(){
+  S.choosing = false; S.scan = null;
+  $('choice').hidden = true;
+  $('btnShot').hidden = $('shotHint').hidden = false;
+  $('snap').hidden = true;
+}
+document.querySelectorAll('.opt').forEach(o => o.onclick = () => submitChoice(o.dataset.type));
+$('btnRescan').onclick = () => { hideErr(); hideChoice(); S.cooldown = Date.now() + 1500; renderCam(); };
+
+async function submitChoice(type){
+  if (!S.scan || S.busy) return;
+  hideErr();
+  if (Date.now() - S.scan.at > 3 * 60 * 1000) { hideChoice(); renderCam(); return showErr('สแกนไว้นานเกิน 3 นาที กรุณาสแกนหน้าใหม่'); }
+  if (!S.pos) return showErr(S.gpsErr || 'ยังไม่ได้ตำแหน่ง GPS กรุณารอสักครู่แล้วกดอีกครั้ง');
+  S.busy = true;
+  const btns = Array.from(document.querySelectorAll('.opt'));
+  btns.forEach(x => x.disabled = true);
+  const btn = btns.find(x => x.dataset.type === type), label = btn.textContent;
+  btn.innerHTML = '<span class="spin"></span>กำลังบันทึก...';
+  try {
+    const photo = makePhoto(S.scan.frame, S.scan.box, TYPE_TH[type]);
+    const r = await api('checkIn', { empId:S.emp.id, type:type, descriptor:S.scan.desc, photo:photo, ua:navigator.userAgent,
+                                     lat:S.pos.lat, lng:S.pos.lng, accuracy:S.pos.accuracy });
+    S.emp.today = r.today;
+    hideChoice();
+    if (IS_POPUP) try { window.opener.onPopupResult('CHECK', r, photo); } catch(e){}
+    showResult(r, photo);
+  } catch(e) {
+    showErr(e);
+    if (/ใบหน้าไม่ตรง/.test(String(e && e.message))) { hideChoice(); S.cooldown = Date.now() + 3000; renderCam(); }
+  } finally {
+    S.busy = false; btns.forEach(x => x.disabled = false); btn.textContent = label;
+  }
 }
 
 function showResult(r, photo){
