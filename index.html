@@ -316,9 +316,10 @@ function renderCam(){
   const alt = $('btnAlt');
   alt.hidden = CAM_MODE === 'live' && !IS_MOBILE;
   alt.textContent = CAM_MODE === 'popup' ? '📱 ใช้มือถือ/แท็บเล็ต? กดถ่ายรูปด้วยแอปกล้องแทน'
+                  : CAM_MODE === 'photo' && !HAS_GAS ? '🎥 ลองเปิดกล้องสดอีกครั้ง'
                   : CAM_MODE === 'photo' && !IS_MOBILE && !IS_POPUP ? '💻 ใช้คอมพิวเตอร์? เปิดกล้องในหน้าต่างใหม่แทน'
                   : '📷 กล้องสดมีปัญหา? ถ่ายรูปด้วยแอปกล้องแทน';
-  if (CAM_MODE === 'photo' && (IS_MOBILE || IS_POPUP)) alt.hidden = true;
+  if (CAM_MODE === 'photo' && HAS_GAS && (IS_MOBILE || IS_POPUP)) alt.hidden = true;
   setMode(S.mode);
 }
 
@@ -432,6 +433,7 @@ $('btnShot').onclick = () => {
 
 $('btnAlt').onclick = () => {
   hideErr();
+  if (CAM_MODE === 'photo' && !HAS_GAS) { CAM_MODE = 'live'; renderCam(); startCamera(); return; }
   if (CAM_MODE === 'photo') { CAM_MODE = 'popup'; renderCam(); return; }
   stopCam();
   CAM_MODE = 'photo';
