@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เช็คอินเข้างาน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+ /* แสดงข้อผิดพลาดของหน้าเว็บบนจอ (ช่วยแจ้งปัญหา) */
+  window.addEventListener('error', function (e) {
+    var a = document.getElementById('alert');
+    var msg = 'เกิดข้อผิดพลาดในหน้าเว็บ: ' + (e.message || e) + (e.lineno ? ' (บรรทัด ' + e.lineno + ')' : '');
+    if (a) { a.className = 'alert bad'; a.textContent = msg; a.hidden = false; }
+    else document.addEventListener('DOMContentLoaded', function () { var b = document.getElementById('alert'); if (b) { b.textContent = msg; b.hidden = false; } });
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
+<style>
+  :root{--bg:#f2f4f8;--card:#fff;--ink:#1b2232;--muted:#677086;--line:#e2e6ee;--brand:#1f6feb;--brand2:#0b4fc4;
+        --ok:#17924f;--okbg:#e5f6ec;--warn:#b76e00;--warnbg:#fff4df;--bad:#c62f4a;--badbg:#fde8ec}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Sarabun',system-ui,-apple-system,sans-serif}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
+  header{display:flex;justify-content:space-between;align-items:flex-end;margin:4px 0 14px}
+  header h1{font-size:20px;margin:0;line-height:1.2}
+  header small{color:var(--muted);font-size:13px}
+  .clock{text-align:right}
+  .clock .t{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+  .clock .d{font-size:13px;color:var(--muted)}
+  .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(20,30,60,.07);margin-bottom:12px}
+  label{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+  input[type=text]{width:100%;font:inherit;font-size:20px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;outline:none;text-transform:uppercase}
+  input[type=text]:focus{border-color:var(--brand)}
+  button,.btn{font:inherit;font-size:17px;font-weight:600;border:0;border-radius:12px;padding:14px;width:100%;cursor:pointer;background:var(--brand);color:#fff;display:block;text-align:center;text-decoration:none}
+  button:active{background:var(--brand2)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .ghost{background:#eef1f7;color:var(--ink)} .ghost:active{background:#e1e6f0}
+  .mt{margin-top:10px}
+  .emp{display:flex;align-items:center;gap:12px}
+  .avatar{width:46px;height:46px;border-radius:50%;background:#dfe8fb;color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:20px;flex:none}
+  .emp b{font-size:18px;display:block} .emp span{color:var(--muted);font-size:14px}
+  .link{background:none;color:var(--brand);width:auto;padding:4px 0;font-size:14px;margin-left:auto}
+  .link:active{background:none}
+  .modes{display:flex;gap:10px;margin-top:14px}
+  .mode{flex:1;background:#eef1f7;color:var(--ink);border:2px solid transparent;padding:14px 8px}
+  .mode:active{background:#e1e6f0}
+  .mode.on{background:#e7f0ff;border-color:var(--brand);color:var(--brand)}
+  .mode.out.on{background:#fff1e6;border-color:#e06c00;color:#c25d00}
+  .today{margin-top:12px;font-size:14px;color:var(--muted)}
+  .today div{display:flex;justify-content:space-between;padding:6px 0;border-top:1px dashed var(--line);color:var(--ink)}
+  .cam{position:relative;border-radius:14px;overflow:hidden;background:#0d1220;aspect-ratio:3/4}
+  .cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .cam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .guide{position:absolute;left:50%;top:46%;width:62%;aspect-ratio:3/4;transform:translate(-50%,-50%);border:3px dashed rgba(255,255,255,.55);border-radius:50%;pointer-events:none;transition:border-color .2s}
+  .guide.ok{border-style:solid;border-color:#3ddc84}
+  .idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#cfd6e6;text-align:center;padding:24px;font-size:16px;line-height:1.5}
+  .idle .ico{font-size:56px;line-height:1}
+  .camMsg{position:absolute;left:0;right:0;bottom:0;padding:10px 12px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:15px;text-align:center}
+  .camMsg:empty{display:none}
+  .chips{display:flex;gap:8px;margin:12px 0}
+  .chip{flex:1;font-size:13px;padding:8px 10px;border-radius:10px;background:#eef1f7;color:var(--muted);display:flex;gap:6px;align-items:center;min-width:0}
+  .chip i{width:9px;height:9px;border-radius:50%;background:#a7afbf;flex:none}
+  .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip.ok{background:var(--okbg);color:var(--ok)} .chip.ok i{background:var(--ok)}
+  .chip.warn{background:var(--warnbg);color:var(--warn)} .chip.warn i{background:var(--warn)}
+  .chip.bad{background:var(--badbg);color:var(--bad)} .chip.bad i{background:var(--bad)}
+  .alert{border-radius:12px;padding:12px 14px;font-size:15px;margin-bottom:12px;line-height:1.5}
+  .alert.bad{background:var(--badbg);color:var(--bad)} .alert.info{background:#e7f0ff;color:var(--brand2)}
+  .alert.warn{background:var(--warnbg);color:var(--warn)}
+  .alert .btn{margin-top:10px;font-size:15px;padding:10px}
+  .filein{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .hint{font-size:13px;color:var(--muted);text-align:center;margin-top:8px}
+  .res{text-align:center}
+  .res .ic{width:72px;height:72px;border-radius:50%;margin:6px auto 10px;display:grid;place-items:center;font-size:40px;color:#fff;background:var(--ok)}
+  .res h2{margin:0 0 2px;font-size:22px}
+  .res .big{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0 0}
+  .res img{width:120px;height:160px;object-fit:cover;border-radius:12px;margin:12px auto 4px;display:block}
+  .kv{text-align:left;margin-top:12px;font-size:15px}
+  .kv div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+  .kv div span:first-child{color:var(--muted)}
+  .kv div span:last-child{text-align:right}
+  .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:14px;font-weight:600}
+  .tag.ok{background:var(--okbg);color:var(--ok)} .tag.warn{background:var(--warnbg);color:var(--warn)}
+  .spin{display:inline-block;width:16px;height:16px;border:2.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-3px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  [hidden]{display:none!important}
+  @media (min-width:760px){.wrap{padding-top:32px}.cam{aspect-ratio:4/3}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>ลงเวลาเข้า-ออกงาน</h1><small>สแกนใบหน้า + ตำแหน่ง GPS</small></div>
+    <div class="clock"><div class="t" id="clk">--:--:--</div><div class="d" id="clkd"></div></div>
+  </header>
+
+  <div id="inApp" class="alert warn" hidden></div>
+  <div id="alert" class="alert bad" hidden></div>
+
+  <!-- ขั้นที่ 1: รหัสพนักงาน -->
+  <section class="card" id="stepId">
+    <label for="empId">รหัสพนักงาน</label>
+    <input type="text" id="empId" autocomplete="off" placeholder="เช่น EMP001" enterkeyhint="go">
+    <button class="mt" id="btnLookup">ถัดไป</button>
+  </section>
+
+  <!-- ขั้นที่ 2: ข้อมูลพนักงาน + เลือกประเภท -->
+  <section class="card" id="stepEmp" hidden>
+    <div class="emp">
+      <div class="avatar" id="av"></div>
+      <div><b id="empName"></b><span id="empDept"></span></div>
+      <button class="link" id="btnChange">เปลี่ยน</button>
+    </div>
+    <div class="modes" id="modes">
+      <button class="mode" data-mode="IN">เข้างาน</button>
+      <button class="mode out" data-mode="OUT">ออกงาน</button>
+    </div>
+    <div class="alert info mt" id="regNote" hidden>ครั้งแรก: กรุณาลงทะเบียนใบหน้า มองตรงกล้องในที่แสงสว่าง ไม่สวมแมสก์/แว่นดำ</div>
+    <div class="today" id="today"></div>
+  </section>
+
+  <!-- ขั้นที่ 3: กล้อง -->
+  <section class="card" id="stepCam" hidden>
+    <div class="cam">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+      <img id="snap" alt="" hidden>
+      <div class="guide" id="guide"></div>
+      <div class="idle" id="idle" hidden><div class="ico" id="idleIco">📷</div><div id="idleText"></div></div>
+      <div class="camMsg" id="camMsg"></div>
+    </div>
+    <div class="chips">
+      <div class="chip" id="chipFace"><i></i><span>ใบหน้า: รอ</span></div>
+      <div class="chip" id="chipGps"><i></i><span>GPS: รอ</span></div>
+    </div>
+    <button id="btnShot" disabled>สแกนหน้า</button>
+    <div class="hint" id="shotHint"></div>
+    <button class="ghost mt" id="btnAlt" hidden></button>
+    <input type="file" id="fbFile" class="filein" accept="image/*" capture="user" tabindex="-1">
+  </section>
+
+  <!-- ขั้นที่ 4: ผลลัพธ์ -->
+  <section class="card res" id="stepRes" hidden>
+    <div class="ic">✓</div>
+    <h2 id="rTitle"></h2>
+    <div id="rName"></div>
+    <div class="big" id="rTime"></div>
+    <div id="rDate" style="color:var(--muted)"></div>
+    <img id="rImg" alt="">
+    <div class="kv" id="rKv"></div>
+    <button class="mt" id="btnDone">เสร็จสิ้น</button>
+  </section>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbzcA_B-loUQQTfAOSpeczHp3x4Agp6AhG4PlUX_Od5Ri1cFpseCfpHQn_Kttlu0Zdt-vA/exec';
+const HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
+const MAPS_URL = 'https://www.google.com/maps?q=';
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+const $ = id => document.getElementById(id);
+const S = { emp:null, mode:null, prefMode:null, stream:null, models:false, modelErr:null, pos:null, gpsErr:null,
+            watch:null, loop:false, face:false, busy:false, offset:0, pageHtml:null };
+
+/* ---------- ตรวจสภาพแวดล้อม ----------
+   หน้าเว็บของ Apps Script ถูกแสดงในกรอบ (iframe) ที่ Google ไม่อนุญาตให้ใช้กล้องสด
+   - มือถือ  : ใช้แอปกล้องของเครื่อง (ถ่ายรูปแล้วสแกนหน้าจากรูป)
+   - คอมพิวเตอร์ : เปิดกล้องในหน้าต่างใหม่ที่อยู่นอกกรอบ                                  */
+const UA = navigator.userAgent;
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(UA) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(UA))
+  || (navigator.maxTouchPoints > 0 && window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const IS_POPUP = location.protocol === 'blob:' && !!window.opener;
+const IN_FRAME = (() => { try { return window.self !== window.top; } catch(e) { return true; } })();
+const IN_APP = /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|TikTok/i.test(UA);
+function liveCamAllowed(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+  const fp = document.permissionsPolicy || document.featurePolicy;
+  if (fp && fp.allowsFeature) return fp.allowsFeature('camera');
+  return !IN_FRAME;
+}
+let CAM_MODE = liveCamAllowed() ? 'live' : (IS_MOBILE || IS_POPUP ? 'photo' : 'popup');
+
+if (IN_APP && !IS_POPUP) {
+  const box = $('inApp');
+  const isLine = UA.indexOf('Line/') > -1;
+  box.innerHTML = 'คุณเปิดลิงก์ในแอป ' + (isLine ? 'LINE' : 'แชท/โซเชียล') +
+    ' ซึ่งอาจใช้กล้องหรือ GPS ไม่ได้ แนะนำให้เปิดใน Chrome หรือ Safari' +
+    '<br>กดปุ่ม ⋮ หรือ ⋯ มุมขวาบน แล้วเลือก "เปิดในเบราว์เซอร์"';
+  box.hidden = false;
+  if (isLine && !HAS_GAS) {
+    box.insertAdjacentHTML('beforeend', '<a class="btn" href="' + location.href.split('#')[0].split('?')[0] + '?openExternalBrowser=1" target="_top">เปิดในเบราว์เซอร์</a>');
+  } else if (isLine) google.script.run.withSuccessHandler(url => {
+    if (url) box.insertAdjacentHTML('beforeend', `<a class="btn" href="${url}?openExternalBrowser=1" target="_top">เปิดในเบราว์เซอร์</a>`);
+  }).getExecUrl();
+}
+
+/* ---------- นาฬิกา (ซิงก์กับเวลาเซิร์ฟเวอร์) ---------- */
+function tick(){
+  const d = new Date(Date.now() + S.offset);
+  $('clk').textContent = d.toLocaleTimeString('th-TH', {hour12:false, timeZone:'Asia/Bangkok'});
+  $('clkd').textContent = d.toLocaleDateString('th-TH', {weekday:'short', day:'numeric', month:'short', year:'numeric', timeZone:'Asia/Bangkok'});
+}
+tick(); setInterval(tick, 1000);
+
+/* ---------- เรียกฟังก์ชันฝั่ง Apps Script ---------- */
+function api(fn, arg){
+  if (IS_POPUP) return window.opener.api(fn, arg); /* หน้าต่างกล้องบน PC ส่งต่อให้หน้าหลัก */
+  if (!HAS_GAS) {
+    /* หน้าเว็บอยู่นอก Apps Script (GitHub Pages): เรียก API ผ่าน doPost */
+    return fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: fn, arg: arg }) })
+      .then(r => { if (!r.ok) throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (' + r.status + ')'); return r.json(); })
+      .then(r => { if (r && r.ok === false) throw new Error(r.msg); return r; });
+  }
+  return new Promise((ok, no) => google.script.run
+    .withSuccessHandler(r => r && r.ok === false ? no(new Error(r.msg)) : ok(r))
+    .withFailureHandler(e => no(e))[fn](arg));
+}
+function showErr(msg){ const a=$('alert'); a.className='alert bad'; a.textContent = String(msg && msg.message || msg).replace(/^(Exception|Error):\s*/,''); a.hidden=false; a.scrollIntoView({behavior:'smooth',block:'center'}); }
+function showInfo(msg){ const a=$('alert'); a.className='alert info'; a.textContent = msg; a.hidden=false; }
+function hideErr(){ $('alert').hidden = true; }
+function show(ids){ ['stepId','stepEmp','stepCam','stepRes'].forEach(s => $(s).hidden = !ids.includes(s)); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- โหลดโมเดลใบหน้า ---------- */
+const modelsReady = (async () => {
+  try {
+    try { if (!(await faceapi.tf.setBackend('webgl'))) await faceapi.tf.setBackend('cpu'); }
+    catch(e){ await faceapi.tf.setBackend('cpu'); }
+    await faceapi.tf.ready();
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]);
+    S.models = true;
+  } catch(e) { S.modelErr = e; console.error(e); }
+})();
+
+/* ---------- ขั้นที่ 1 ---------- */
+try { $('empId').value = localStorage.getItem('empId') || ''; } catch(e){}
+$('empId').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+$('btnLookup').onclick = lookup;
+$('btnChange').onclick = () => { stopAll(); S.emp = null; hideErr(); show(['stepId']); $('empId').focus(); };
+
+async function lookup(){
+  const id = $('empId').value.trim();
+  if (!id) return showErr('กรุณากรอกรหัสพนักงาน');
+  hideErr();
+  const b = $('btnLookup'); b.disabled = true; b.innerHTML = '<span class="spin"></span>กำลังค้นหา...';
+  try {
+    const r = await api('getEmployee', id);
+    if (!r.active) throw new Error('บัญชีนี้ถูกระงับการใช้งาน');
+    S.offset = r.serverTime - Date.now();
+    S.emp = r;
+    try { localStorage.setItem('empId', r.id); } catch(e){}
+    renderEmp();
+  } catch(e) { showErr(e); }
+  finally { b.disabled = false; b.textContent = 'ถัดไป'; }
+}
+
+function renderEmp(){
+  const e = S.emp;
+  $('av').textContent = (e.name || '?').trim().charAt(0);
+  $('empName').textContent = e.name;
+  $('empDept').textContent = [e.id, e.dept].filter(Boolean).join(' · ');
+  $('modes').hidden = !e.registered;
+  $('regNote').hidden = e.registered;
+  $('today').innerHTML = e.today && e.today.length
+    ? '<b>วันนี้</b>' + e.today.map(t => `<div><span>${esc(t.type)} · ${esc(t.status)}</span><span>${t.time} น.</span></div>`).join('')
+    : (e.registered ? 'วันนี้ยังไม่มีการลงเวลา' : '');
+  show(['stepEmp','stepCam']);
+  if (e.registered) {
+    const hasIn = (e.today||[]).some(t => t.type === 'เข้างาน');
+    setMode(S.prefMode || (hasIn ? 'OUT' : 'IN'));
+    S.prefMode = null;
+  } else setMode('REG');
+  $('snap').hidden = true;
+  renderCam();
+  if (CAM_MODE !== 'popup') startGps();
+  if (CAM_MODE === 'live') startCamera();
+}
+document.querySelectorAll('.mode').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+function setMode(m){
+  S.mode = m;
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  const what = m === 'REG' ? 'ลงทะเบียนใบหน้า' : m === 'IN' ? 'เข้างาน' : 'ออกงาน';
+  $('btnShot').textContent =
+    CAM_MODE === 'photo' ? '📷 ถ่ายรูปสแกนหน้า · ' + what :
+    CAM_MODE === 'popup' ? '📷 เปิดกล้อง · ' + what :
+    (m === 'REG' ? 'ลงทะเบียนใบหน้า' : 'สแกนหน้า · ' + what);
+  updateBtn();
+}
+
+/* ---------- แสดงพื้นที่กล้องตามโหมด ---------- */
+function renderCam(){
+  const live = CAM_MODE === 'live';
+  $('video').hidden = $('overlay').hidden = $('guide').hidden = !live;
+  $('idle').hidden = live;
+  $('camMsg').textContent = '';
+  if (CAM_MODE === 'photo') {
+    $('idleIco').textContent = '🤳';
+    $('idleText').innerHTML = 'กดปุ่มด้านล่าง ระบบจะเปิดกล้องหน้าของมือถือ<br>ถ่ายให้เห็นใบหน้าชัด ๆ แล้วกดใช้รูป';
+    $('shotHint').textContent = 'ต้องถ่ายรูปใหม่ตอนนี้เท่านั้น ไม่รับรูปเก่าจากคลังภาพ';
+    setChip('chipFace', '', 'ใบหน้า: รอถ่ายรูป');
+  } else if (CAM_MODE === 'popup') {
+    $('idleIco').textContent = '💻';
+    $('idleText').innerHTML = 'บนคอมพิวเตอร์ กล้องจะเปิดในหน้าต่างใหม่<br>กดปุ่มด้านล่าง แล้วกด "อนุญาต" ให้ใช้กล้องและตำแหน่ง';
+    $('shotHint').textContent = 'ถ้าหน้าต่างไม่ขึ้น ให้อนุญาต Pop-up ที่แถบที่อยู่ของเบราว์เซอร์';
+    setChip('chipFace', '', 'ใบหน้า: สแกนในหน้าต่างใหม่');
+    setChip('chipGps', '', 'GPS: ตรวจในหน้าต่างใหม่');
+  } else {
+    $('shotHint').textContent = '';
+  }
+  /* ปุ่มสลับโหมด เผื่อระบบเดาประเภทเครื่องผิด */
+  const alt = $('btnAlt');
+  alt.hidden = CAM_MODE === 'live' && !IS_MOBILE;
+  alt.textContent = CAM_MODE === 'popup' ? '📱 ใช้มือถือ/แท็บเล็ต? กดถ่ายรูปด้วยแอปกล้องแทน'
+                  : CAM_MODE === 'photo' && !IS_MOBILE && !IS_POPUP ? '💻 ใช้คอมพิวเตอร์? เปิดกล้องในหน้าต่างใหม่แทน'
+                  : '📷 กล้องสดมีปัญหา? ถ่ายรูปด้วยแอปกล้องแทน';
+  if (CAM_MODE === 'photo' && (IS_MOBILE || IS_POPUP)) alt.hidden = true;
+  setMode(S.mode);
+}
+
+/* ---------- กล้องสด ---------- */
+async function startCamera(){
+  if (S.stream) { startLoop(); return; }
+  $('camMsg').textContent = 'กำลังเปิดกล้อง...';
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({ audio:false,
+      video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} } });
+    const v = $('video'); v.srcObject = S.stream; await v.play();
+    if (!S.models) $('camMsg').innerHTML = '<span class="spin"></span>กำลังโหลดระบบจดจำใบหน้า...';
+    await modelsReady;
+    if (S.modelErr) throw new Error('โหลดระบบจดจำใบหน้าไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วรีเฟรช');
+    startLoop();
+  } catch(e) {
+    console.error(e);
+    const why = e && e.name === 'NotAllowedError' ? 'ไม่ได้รับอนุญาตให้ใช้กล้อง'
+              : e && e.name === 'NotFoundError' ? 'ไม่พบกล้องในเครื่องนี้'
+              : e && e.name === 'NotReadableError' ? 'กล้องถูกใช้งานโดยแอปอื่นอยู่'
+              : (e.message || 'เปิดกล้องไม่ได้');
+    stopCam();
+    CAM_MODE = 'photo'; /* สำรอง: ถ่ายรูปแทน */
+    renderCam();
+    showErr(why + ' — ใช้ปุ่มถ่ายรูปด้านล่างแทน');
+  }
+}
+
+function startLoop(){ if (!S.loop) { S.loop = true; detectLoop(); } }
+async function detectLoop(){
+  if (!S.loop) return;
+  const v = $('video');
+  if (S.models && v.readyState >= 2 && !S.busy) {
+    try {
+      const det = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({inputSize:224, scoreThreshold:0.5}));
+      const c = $('overlay');
+      if (c.width !== v.videoWidth) { c.width = v.videoWidth; c.height = v.videoHeight; }
+      const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+      if (det) {
+        const b = det.box, near = b.width / Math.min(v.videoWidth, v.videoHeight) > 0.28;
+        ctx.lineWidth = 3; ctx.strokeStyle = near ? '#3ddc84' : '#ffcc00';
+        ctx.strokeRect(b.x, b.y, b.width, b.height);
+        S.face = near;
+        setChip('chipFace', near ? 'ok' : 'warn', near ? 'ใบหน้า: พร้อม' : 'ใบหน้า: ขยับเข้าใกล้');
+        /* สแกนอัตโนมัติ: เห็นหน้านิ่งต่อเนื่อง ~1 วินาที และมี GPS แล้ว */
+        const ready = near && (S.mode === 'REG' || S.pos) && Date.now() > (S.cooldown || 0);
+        S.stable = ready ? (S.stable || 0) + 1 : 0;
+        if (S.stable >= 6) {
+          S.stable = 0;
+          $('camMsg').textContent = 'กำลังสแกน...';
+          capture(v, S.mode === 'REG' ? 3 : 1);
+        } else {
+          $('camMsg').textContent = !near ? 'ขยับหน้าเข้าใกล้กล้องอีกนิด'
+            : (S.mode !== 'REG' && !S.pos) ? 'พบใบหน้า กำลังรอตำแหน่ง GPS...'
+            : 'ถือนิ่ง ๆ กำลังสแกนอัตโนมัติ...';
+        }
+      } else {
+        S.face = false;
+        setChip('chipFace', '', 'ใบหน้า: ไม่พบ');
+        $('camMsg').textContent = 'วางใบหน้าให้อยู่ในกรอบ';
+      }
+      $('guide').classList.toggle('ok', S.face);
+      updateBtn();
+    } catch(e){ console.warn(e); }
+  }
+  setTimeout(detectLoop, 150);
+}
+
+/* ---------- GPS ---------- */
+function startGps(){
+  if (S.watch != null) return;
+  if (!navigator.geolocation) { S.gpsErr = 'อุปกรณ์ไม่รองรับ GPS'; setChip('chipGps','bad','GPS: ไม่รองรับ'); return; }
+  setChip('chipGps', '', 'GPS: กำลังหา...');
+  S.watch = navigator.geolocation.watchPosition(p => {
+    const c = p.coords;
+    S.pos = { lat:c.latitude, lng:c.longitude, accuracy:c.accuracy };
+    S.gpsErr = null;
+    setChip('chipGps', c.accuracy <= 100 ? 'ok' : 'warn', 'GPS: ±' + Math.round(c.accuracy) + ' ม.');
+    updateBtn();
+  }, err => {
+    S.gpsErr = err.code === 1 ? 'กรุณาอนุญาตให้เข้าถึงตำแหน่ง (Location) แล้วรีเฟรชหน้า'
+             : err.code === 3 ? 'หาตำแหน่งนานเกินไป ลองออกไปที่โล่งหรือเปิด GPS'
+             : 'หาตำแหน่งไม่ได้ กรุณาเปิด GPS/Location';
+    setChip('chipGps', 'bad', err.code === 1 ? 'GPS: ไม่ได้รับอนุญาต' : 'GPS: หาไม่เจอ');
+    updateBtn();
+  }, { enableHighAccuracy:true, maximumAge:5000, timeout:20000 });
+}
+
+function setChip(id, cls, text){ const c = $(id); c.className = 'chip ' + cls; c.querySelector('span').textContent = text; }
+function updateBtn(){
+  const needGps = S.mode !== 'REG';
+  $('btnShot').disabled = S.busy || (CAM_MODE === 'live' && (!S.face || (needGps && !S.pos)));
+}
+function stopCam(){
+  S.loop = false; S.face = false;
+  if (S.stream) { S.stream.getTracks().forEach(t => t.stop()); S.stream = null; $('video').srcObject = null; }
+}
+function stopAll(){
+  stopCam();
+  if (S.watch != null) { navigator.geolocation.clearWatch(S.watch); S.watch = null; }
+  S.pos = null;
+}
+
+/* ---------- ปุ่มหลัก ---------- */
+$('btnShot').onclick = () => {
+  hideErr();
+  if (CAM_MODE === 'live') capture($('video'), S.mode === 'REG' ? 3 : 1);
+  else if (CAM_MODE === 'photo') { $('fbFile').value = ''; $('fbFile').click(); }
+  else openPopup();
+};
+
+$('btnAlt').onclick = () => {
+  hideErr();
+  if (CAM_MODE === 'photo') { CAM_MODE = 'popup'; renderCam(); return; }
+  stopCam();
+  CAM_MODE = 'photo';
+  startGps();
+  renderCam();
+};
+
+/* มือถือ: ได้รูปจากแอปกล้อง */
+$('fbFile').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  if (f.lastModified && Date.now() - f.lastModified > 3 * 60 * 1000) {
+    return showErr('กรุณาถ่ายรูปใหม่ตอนนี้ด้วยกล้อง (ไม่รับรูปเก่าจากคลังภาพ)');
+  }
+  const img = $('snap');
+  img.src = URL.createObjectURL(f);
+  try { await img.decode(); } catch(err) { return showErr('เปิดรูปไม่ได้ กรุณาถ่ายใหม่'); }
+  img.hidden = false; $('idle').hidden = true;
+  $('camMsg').innerHTML = '<span class="spin"></span>กำลังตรวจใบหน้า...';
+  await modelsReady;
+  if (S.modelErr) { $('camMsg').textContent = ''; return showErr('โหลดระบบจดจำใบหน้าไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วรีเฟรช'); }
+  if (S.mode !== 'REG' && !S.pos) {
+    $('camMsg').innerHTML = '<span class="spin"></span>กำลังรอตำแหน่ง GPS...';
+    for (let i = 0; i < 40 && !S.pos && !S.gpsErr; i++) await sleep(500);
+    if (!S.pos) { $('camMsg').textContent = ''; return showErr(S.gpsErr || 'ยังไม่ได้ตำแหน่ง GPS กรุณาลองใหม่'); }
+  }
+  $('camMsg').textContent = '';
+  capture(img, 1);
+};
+
+/* คอมพิวเตอร์: เปิดหน้าต่างกล้องนอกกรอบของ Apps Script */
+async function openPopup(){
+  const w = window.open('', '_blank', 'width=520,height=900');
+  if (!w) return showErr('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณากดอนุญาต Pop-up ที่แถบที่อยู่ แล้วกดปุ่มอีกครั้ง');
+  try { w.document.write('<p style="font:18px sans-serif;padding:24px">กำลังเปิดกล้อง...</p>'); } catch(e){}
+  try {
+    if (!S.pageHtml) S.pageHtml = await api('getPageHtml');
+    const url = URL.createObjectURL(new Blob([S.pageHtml], {type:'text/html'}));
+    w.location.href = url + '#' + new URLSearchParams({ emp:S.emp.id, mode:S.mode });
+    $('camMsg').textContent = 'สแกนหน้าในหน้าต่างใหม่ได้เลย';
+  } catch(e) { try { w.close(); } catch(_){} showErr(e); }
+}
+/* หน้าต่างกล้องแจ้งผลกลับมาที่หน้าหลัก */
+window.onPopupResult = (kind, r, photo) => {
+  if (kind === 'REG') { S.emp.registered = true; renderEmp(); showInfo('ลงทะเบียนใบหน้าเรียบร้อย ✓ กดปุ่มเปิดกล้องอีกครั้งเพื่อลงเวลา'); }
+  else { S.emp.today = r.today; showResult(r, photo); }
+};
+
+function frameOf(src){
+  const w = src.videoWidth || src.naturalWidth, h = src.videoHeight || src.naturalHeight;
+  const k = Math.min(1, 720 / Math.max(w, h));
+  const c = document.createElement('canvas'); c.width = Math.round(w*k); c.height = Math.round(h*k);
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+function makePhoto(frame, box){
+ /* ครอปรอบใบหน้า แล้วประทับเวลา/ชื่อ/พิกัดลงบนรูป */
+  const W = 360, H = 480;
+  const cx = box.x + box.width/2, cy = box.y + box.height/2;
+  let cw = Math.min(frame.width, box.width * 2.6), ch = cw * H / W;
+  if (ch > frame.height) { ch = frame.height; cw = ch * W / H; }
+  const sx = Math.max(0, Math.min(frame.width - cw, cx - cw/2)), sy = Math.max(0, Math.min(frame.height - ch, cy - ch/2));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.drawImage(frame, sx, sy, cw, ch, 0, 0, W, H);
+  x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, H - 62, W, 62);
+  x.fillStyle = '#fff'; x.font = '600 15px Sarabun, sans-serif';
+  const d = new Date(Date.now() + S.offset);
+  x.fillText(d.toLocaleString('th-TH', {hour12:false, timeZone:'Asia/Bangkok'}) + '  ' + (S.mode==='IN'?'เข้างาน':S.mode==='OUT'?'ออกงาน':'ลงทะเบียน'), 10, H - 40);
+  x.font = '13px Sarabun, sans-serif';
+  x.fillText(S.emp.id + ' ' + S.emp.name + (S.pos ? `  ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)}` : ''), 10, H - 16);
+  return c.toDataURL('image/jpeg', 0.78);
+}
+
+async function capture(src, samples){
+  if (S.busy) return;
+  hideErr(); S.busy = true; updateBtn();
+  const b = $('btnShot');
+  b.innerHTML = '<span class="spin"></span>กำลังวิเคราะห์ใบหน้า...';
+  try {
+    if (!S.models) { await modelsReady; if (S.modelErr) throw new Error('โหลดระบบจดจำใบหน้าไม่สำเร็จ กรุณารีเฟรช'); }
+    const opts = new faceapi.TinyFaceDetectorOptions({inputSize:416, scoreThreshold:0.45});
+    const descs = []; let photo = null;
+    for (let i = 0; i < samples; i++) {
+      const frame = frameOf(src);
+      const r = await faceapi.detectSingleFace(frame, opts).withFaceLandmarks().withFaceDescriptor();
+      if (!r) throw new Error('ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ ให้เห็นใบหน้าเต็ม ๆ ในที่แสงสว่าง');
+      descs.push(r.descriptor);
+      if (!photo) photo = makePhoto(frame, r.detection.box);
+      if (i < samples - 1) await sleep(300);
+    }
+    setChip('chipFace', 'ok', 'ใบหน้า: พบแล้ว');
+    const desc = Array.from({length:128}, (_, k) => +(descs.reduce((s, d) => s + d[k], 0) / descs.length).toFixed(5));
+
+    b.innerHTML = '<span class="spin"></span>กำลังบันทึก...';
+    const payload = { empId:S.emp.id, type:S.mode, descriptor:desc, photo, ua:navigator.userAgent,
+                      lat:S.pos && S.pos.lat, lng:S.pos && S.pos.lng, accuracy:S.pos && S.pos.accuracy };
+
+    if (S.mode === 'REG') {
+      await api('registerFace', payload);
+      S.emp.registered = true;
+      S.busy = false;
+      if (IS_POPUP) try { window.opener.onPopupResult('REG'); } catch(e){}
+      renderEmp();
+      showInfo('ลงทะเบียนใบหน้าเรียบร้อย ✓ เลือก เข้างาน/ออกงาน แล้วสแกนอีกครั้งเพื่อลงเวลา');
+      return;
+    }
+    const r = await api('checkIn', payload);
+    S.emp.today = r.today;
+    if (IS_POPUP) try { window.opener.onPopupResult('CHECK', r, photo); } catch(e){}
+    showResult(r, photo);
+  } catch(e) {
+    S.cooldown = Date.now() + 4000;
+    setChip('chipFace', 'bad', 'ใบหน้า: ไม่ผ่าน');
+    showErr(e);
+  }
+  finally { S.busy = false; setMode(S.mode); }
+}
+
+function showResult(r, photo){
+  stopAll();
+  S.cooldown = Date.now() + 15000; /* กันสแกนซ้ำทันทีหลังบันทึกสำเร็จ */
+  $('rTitle').textContent = 'บันทึก' + r.typeTh + 'สำเร็จ';
+  $('rName').textContent = r.name;
+  $('rTime').textContent = r.time;
+  $('rDate').textContent = r.dateTh;
+  $('rImg').src = photo;
+  const good = /ตรงเวลา|ปกติ/.test(r.status);
+  const place = (r.place ? esc(r.place) + ' (' + r.distance + ' ม.)' + (r.inArea === false ? ' · นอกพื้นที่' : '') + (r.address ? '<br>' : '') : '')
+              + (r.address ? esc(r.address) : (r.place ? '' : 'ไม่ทราบที่อยู่'));
+  $('rKv').innerHTML = [
+    ['สถานะ', `<span class="tag ${good ? 'ok' : 'warn'}">${esc(r.status)}</span>`],
+    ['ตำแหน่ง', place],
+    ['พิกัด', '<a href="' + MAPS_URL + r.lat + ',' + r.lng + '" target="_blank">' + r.lat.toFixed(5) + ', ' + r.lng.toFixed(5) + '</a> (±' + r.accuracy + ' ม.)'],
+    ['ความตรงของใบหน้า', r.faceScore + '%'],
+  ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('');
+  $('btnDone').textContent = IS_POPUP ? 'ปิดหน้าต่างนี้' : 'เสร็จสิ้น';
+  show(['stepRes']);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+$('btnDone').onclick = () => { if (IS_POPUP) { window.close(); return; } hideErr(); renderEmp(); };
+
+/* ---------- เปิดในหน้าต่างกล้อง (PC): ดึงรหัสและประเภทจาก URL แล้วเริ่มทันที ---------- */
+if (IS_POPUP) {
+  const q = new URLSearchParams(location.hash.slice(1));
+  $('empId').value = q.get('emp') || '';
+  S.prefMode = q.get('mode') === 'OUT' ? 'OUT' : q.get('mode') === 'IN' ? 'IN' : null;
+  $('btnChange').hidden = true;
+  if ($('empId').value) lookup();
+} else if ($('empId').value) {
+  /* เคยใช้เครื่องนี้แล้ว: ค้นหารหัสเดิมให้อัตโนมัติ */
+  lookup();
+}
+</script>
+</body>
+</html>
